@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart2, FileText, Archive, Brain, Tag, ArrowLeft, Clock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import useNotesStore from '../store/notesStore';
 import CosmicBackground from '../components/ui/CosmicBackground';
@@ -14,10 +14,24 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const { fetchStats } = useNotesStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    fetchStats().then(setStats).catch(console.error).finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    setLoading(true);
+    setStats(null);
+
+    fetchStats()
+      .then((data) => {
+        if (!cancelled) setStats(data);
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [location.pathname]);
 
   const statCards = stats ? [
     { label: 'Total Notes',    value: stats.total,   icon: FileText, color: '#7c3aed', bg: 'rgba(124,58,237,0.12)' },

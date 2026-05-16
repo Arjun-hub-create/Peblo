@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Search, Archive, BarChart2, LogOut, Home, X, Tag } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
 import useNotesStore from '../../store/notesStore';
 import { staggerContainer, staggerItem } from '../../utils/motionVariants';
@@ -10,6 +10,8 @@ export default function Sidebar({ onNewNote, tags = [] }) {
   const { user, logout } = useAuthStore();
   const { searchQuery, setSearchQuery, selectedTag, setSelectedTag, showArchived, setShowArchived, fetchNotes } = useNotesStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const onDashboard = location.pathname === '/dashboard';
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -91,7 +93,7 @@ export default function Sidebar({ onNewNote, tags = [] }) {
         {[
           { icon: Home, label: 'All Notes', action: () => { setShowArchived(false); setSelectedTag(''); fetchNotes(); }, active: !showArchived },
           { icon: Archive, label: 'Archived', action: () => { setShowArchived(true); setSelectedTag(''); fetchNotes(); }, active: showArchived },
-          { icon: BarChart2, label: 'Dashboard', action: () => navigate('/dashboard'), active: false },
+          { icon: BarChart2, label: 'Dashboard', action: () => navigate('/dashboard'), active: onDashboard },
         ].map((item) => (
           <motion.button
             key={item.label}

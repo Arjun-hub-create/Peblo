@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import useAuthStore from './store/authStore';
 import Landing from './pages/Landing';
@@ -10,7 +9,6 @@ import Workspace from './pages/Workspace';
 import Dashboard from './pages/Dashboard';
 import SharedNote from './pages/SharedNote';
 import LoadingScreen from './components/ui/LoadingScreen';
-import PageTransition from './components/ui/PageTransition';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -24,21 +22,17 @@ const PublicRoute = ({ children }) => {
   return !isAuthenticated ? children : <Navigate to="/workspace" replace />;
 };
 
-function AnimatedRoutes() {
-  const location = useLocation();
-
+function AppRoutes() {
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<PageTransition><Landing /></PageTransition>} />
-        <Route path="/login" element={<PublicRoute><PageTransition><Login /></PageTransition></PublicRoute>} />
-        <Route path="/signup" element={<PublicRoute><PageTransition><Signup /></PageTransition></PublicRoute>} />
-        <Route path="/workspace" element={<ProtectedRoute><PageTransition><Workspace /></PageTransition></ProtectedRoute>} />
-        <Route path="/dashboard" element={<ProtectedRoute><PageTransition><Dashboard /></PageTransition></ProtectedRoute>} />
-        <Route path="/shared/:shareId" element={<PageTransition><SharedNote /></PageTransition>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AnimatePresence>
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
+      <Route path="/workspace" element={<ProtectedRoute><Workspace /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/shared/:shareId" element={<SharedNote />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
@@ -64,7 +58,7 @@ export default function App() {
           error:   { iconTheme: { primary: '#f472b6', secondary: '#0B1020' } },
         }}
       />
-      <AnimatedRoutes />
+      <AppRoutes />
     </BrowserRouter>
   );
 }
