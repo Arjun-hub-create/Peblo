@@ -64,4 +64,17 @@ const voiceQuery = async (req, res) => {
   }
 };
 
-module.exports = { generateSummary, suggestTitle, voiceQuery };
+const transcribe = async (req, res) => {
+  try {
+    if (!req.file?.buffer?.length) {
+      return res.status(400).json({ message: 'No audio file received.' });
+    }
+    const text = await aiService.transcribeAudio(req.file.buffer, req.file.mimetype);
+    res.json({ text });
+  } catch (error) {
+    console.error('Transcribe error:', error.message || error);
+    res.status(500).json({ message: error.message || 'Voice transcription failed.' });
+  }
+};
+
+module.exports = { generateSummary, suggestTitle, voiceQuery, transcribe };

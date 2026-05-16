@@ -1,5 +1,5 @@
 const OpenAI = require('openai');
-const { APIError } = require('openai');
+const { APIError, toFile } = require('openai');
 
 function getProviderConfig() {
   const key = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim();
@@ -132,4 +132,32 @@ const voiceQuery = async (query, noteContent, noteTitle) => {
   );
 };
 
-module.exports = { generateSummary, extractActionItems, suggestTitle, suggestTags, voiceQuery };
+const transcribeAudio = async (buffer, mimetype = 'audio/webm') => {
+  const { client, isOpenRouter } = getProviderConfig();
+  const ext = mimetype.includes('mp4') || mimetype.includes('m4a') ? 'm4a' : 'webm';
+  const file = await toFile(buffer, `recording.${ext}`, { type: mimetype || `audio/${ext}` });
+  const model = isOpenRouter ? 'openai/whisper-1' : 'whisper-1';
+
+  try {
+    const result = await client.audio.transcriptions.create({
+      file,
+      model,
+      language: 'en',
+    });
+    const text = result.text?.trim();
+    if (!text) throw new Error('No speech detected in the recording.');
+    return text;
+  } catch (err) {
+    if (err instanceof APIError) throw new Error(toUserError(err));
+    throw err;
+  }
+};
+
+module.exports = {
+  generateSummary,
+  extractActionItems,
+  suggestTitle,
+  suggestTags,
+  voiceQuery,
+  transcribeAudio,
+};

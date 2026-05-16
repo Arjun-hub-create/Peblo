@@ -1,23 +1,30 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Mic, MicOff, Volume2, VolumeX, ChevronDown, ChevronUp, Lightbulb, ListChecks, Tag, MessageSquare, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useNotesStore from '../../store/notesStore';
+import useServerVoice from '../../hooks/useServerVoice';
 import AIOrb from '../ui/AIOrb';
 import VoiceWaveform from '../ui/VoiceWaveform';
-import { getSpeechRecognition, startSpeechRecognition } from '../../utils/speechRecognition';
 
 export default function AIPanel({ note, onClose }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [voiceQuery, setVoiceQuery] = useState('');
   const [aiAnswer, setAiAnswer] = useState('');
   const [suggestedTitle, setSuggestedTitle] = useState('');
   const [showSummary, setShowSummary] = useState(true);
   const [showActions, setShowActions] = useState(true);
-  const recognitionRef = useRef(null);
   const { generateSummary, suggestTitle, voiceQuery: queryAI, updateNote } = useNotesStore();
+  const {
+    isRecording,
+    isTranscribing,
+    supportsRecording,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+  } = useServerVoice();
+  const isListening = isRecording || isTranscribing;
 
   const handleGenerateSummary = async () => {
     if (!note?._id || !note.content?.trim()) return toast.error('Add some content first.');
@@ -65,44 +72,34 @@ export default function AIPanel({ note, onClose }) {
     window.speechSynthesis.speak(utterance);
   };
 
-  const voiceTranscriptRef = useRef('');
-  const stoppingMicRef = useRef(false);
+  const startVoiceQuery = async () => {
+    if (isTranscribing) return;
 
-  const startVoiceQuery = () => {
-    if (!getSpeechRecognition()) {
-      return toast.error('Voice input needs Chrome or Edge. You can still type in the box below.');
-    }
-    if (isListening) {
-      stoppingMicRef.current = true;
-      recognitionRef.current?.stop();
-      setIsListening(false);
+    if (isRecording) {
+      try {
+        const text = await stopRecording();
+        setVoiceQuery(text);
+        await handleVoiceQuery(text);
+      } catch (err) {
+        const msg = err.response?.data?.message || err.message || 'Voice transcription failed.';
+        toast.error(msg);
+      }
       return;
     }
 
-    voiceTranscriptRef.current = '';
-    stoppingMicRef.current = false;
+    if (!supportsRecording) {
+      return toast.error('Voice recording is not supported here. Type your question below.');
+    }
 
-    const recognition = startSpeechRecognition({
-      continuous: false,
-      onStart: () => setIsListening(true),
-      onResult: (transcript) => {
-        voiceTranscriptRef.current = transcript;
-        setVoiceQuery(transcript);
-      },
-      onEnd: () => {
-        setIsListening(false);
-        const q = voiceTranscriptRef.current.trim();
-        if (q && !stoppingMicRef.current) handleVoiceQuery(q);
-        stoppingMicRef.current = false;
-      },
-      onError: (message) => {
-        setIsListening(false);
-        stoppingMicRef.current = false;
-        if (message) toast.error(message);
-      },
-    });
-
-    recognitionRef.current = recognition;
+    try {
+      cancelRecording();
+      await startRecording();
+    } catch (err) {
+      const msg = err.name === 'NotAllowedError'
+        ? 'Microphone access denied. Allow the mic in browser settings.'
+        : err.message || 'Could not start microphone.';
+      toast.error(msg);
+    }
   };
 
   const handleVoiceQuery = async (query) => {
@@ -322,8 +319,10 @@ export default function AIPanel({ note, onClose }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              <VoiceWaveform active bars={7} color="#22d3ee" />
-              <span className="text-cyan-400 text-xs">Listening…</span>
+              <VoiceWaveform active={isRecording} bars={7} color="#22d3ee" />
+              <span className="text-cyan-400 text-xs">
+                {isTranscribing ? 'Transcribing…' : 'Recording… tap mic when done'}
+              </span>
             </motion.div>
           )}
 

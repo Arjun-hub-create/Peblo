@@ -2,13 +2,6 @@
 node_modules/
 **/node_modules/
 
-# Environment & secrets
-.env
-.env.local
-.env.*.local
-server/.env
-client/.env
-
 # Build output
 client/dist/
 dist/
@@ -29,3 +22,5 @@ Thumbs.db
 
 # Vite cache
 client/node_modules/.vite/
+
+.vercel

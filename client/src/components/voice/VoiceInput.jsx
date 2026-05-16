@@ -1,49 +1,60 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, X, Check, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getSpeechRecognition, startSpeechRecognition } from '../../utils/speechRecognition';
+import useServerVoice from '../../hooks/useServerVoice';
 import VoiceWaveform from '../ui/VoiceWaveform';
 import PulseRings from '../ui/PulseRings';
 
 export default function VoiceInput({ onTranscript, onClose }) {
-  const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [manualText, setManualText] = useState('');
   const [error, setError] = useState('');
-  const recognitionRef = useRef(null);
+  const {
+    isRecording,
+    isTranscribing,
+    supportsRecording,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+  } = useServerVoice();
 
-  useEffect(() => {
-    if (!getSpeechRecognition()) setError('Use Chrome or Edge for voice input.');
-    return () => { recognitionRef.current?.stop(); };
-  }, []);
+  const toggleListening = async () => {
+    if (isTranscribing) return;
 
-  const startListening = () => {
-    if (!getSpeechRecognition()) {
-      setError('Speech recognition is not supported in this browser. Use Chrome or Edge.');
+    if (isRecording) {
+      try {
+        setError('');
+        const text = await stopRecording();
+        setTranscript(text);
+      } catch (err) {
+        const msg = err.response?.data?.message || err.message || 'Voice transcription failed.';
+        setError(msg);
+        toast.error(msg);
+      }
       return;
     }
 
-    setError('');
-    setTranscript('');
+    if (!supportsRecording) {
+      setError('Voice recording is not supported in this browser. Type your note instead.');
+      return;
+    }
 
-    const recognition = startSpeechRecognition({
-      continuous: true,
-      onStart: () => setIsListening(true),
-      onResult: (text) => setTranscript(text),
-      onEnd: () => setIsListening(false),
-      onError: (message) => {
-        setIsListening(false);
-        if (message) setError(message);
-      },
-    });
-
-    recognitionRef.current = recognition;
+    try {
+      setError('');
+      setTranscript('');
+      await startRecording();
+    } catch (err) {
+      const msg = err.name === 'NotAllowedError'
+        ? 'Microphone access denied. Allow the mic in browser settings, then try again.'
+        : err.message || 'Could not start microphone.';
+      setError(msg);
+    }
   };
 
-  const stopListening = () => {
-    recognitionRef.current?.stop();
-    setIsListening(false);
+  const handleClose = () => {
+    cancelRecording();
+    onClose();
   };
 
   const handleApply = () => {
@@ -54,6 +65,7 @@ export default function VoiceInput({ onTranscript, onClose }) {
   };
 
   const finalText = transcript.trim() || manualText.trim();
+  const isListening = isRecording || isTranscribing;
 
   return (
     <motion.div
@@ -66,7 +78,7 @@ export default function VoiceInput({ onTranscript, onClose }) {
         background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(12px)',
         padding: 24,
       }}
-      onClick={onClose}
+      onClick={handleClose}
     >
       <motion.div
         initial={{ scale: 0.85, opacity: 0 }}
@@ -87,7 +99,7 @@ export default function VoiceInput({ onTranscript, onClose }) {
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}
         >
           <span style={{ color: 'white', fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 15 }}>Voice Note</span>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}>
+          <button type="button" onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}>
             <X size={18} />
           </button>
         </motion.div>
@@ -102,10 +114,11 @@ export default function VoiceInput({ onTranscript, onClose }) {
             <PulseRings active={isListening} color="rgba(34,211,238,0.45)" size={88} />
             <motion.button
               type="button"
-              onClick={isListening ? stopListening : startListening}
+              onClick={toggleListening}
+              disabled={isTranscribing}
               whileTap={{ scale: 0.93 }}
               style={{
-                width: 88, height: 88, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                width: 88, height: 88, borderRadius: '50%', border: 'none', cursor: isTranscribing ? 'wait' : 'pointer',
                 background: isListening
                   ? 'radial-gradient(circle at 35% 35%, #67e8f9, #22d3ee, #0891b2)'
                   : 'radial-gradient(circle at 35% 35%, #c4b5fd, #7c3aed, #4c1d95)',
@@ -113,18 +126,23 @@ export default function VoiceInput({ onTranscript, onClose }) {
                   ? '0 0 40px rgba(34,211,238,0.7), 0 0 80px rgba(34,211,238,0.3)'
                   : '0 0 30px rgba(124,58,237,0.5)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                opacity: isTranscribing ? 0.7 : 1,
               }}
-              animate={isListening ? { scale: [1, 1.07, 1] } : {}}
+              animate={isRecording ? { scale: [1, 1.07, 1] } : {}}
               transition={{ duration: 1.2, repeat: Infinity }}
             >
-              {isListening ? <MicOff size={34} color="white" /> : <Mic size={34} color="white" />}
+              {isRecording ? <MicOff size={34} color="white" /> : <Mic size={34} color="white" />}
             </motion.button>
           </motion.div>
 
-          <VoiceWaveform active={isListening} bars={9} color="#22d3ee" className="mb-3" />
+          <VoiceWaveform active={isRecording} bars={9} color="#22d3ee" className="mb-3" />
 
           <p style={{ color: isListening ? '#22d3ee' : '#64748b', fontSize: 14, fontFamily: 'Inter, sans-serif', marginBottom: 16 }}>
-            {isListening ? 'Listening… speak now' : 'Tap mic to start speaking'}
+            {isTranscribing
+              ? 'Transcribing your voice…'
+              : isRecording
+                ? 'Recording… tap mic when done'
+                : 'Tap mic to speak, tap again to finish'}
           </p>
 
           <AnimatePresence>
