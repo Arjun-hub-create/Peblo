@@ -1,0 +1,187 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0B1020;
+  --bg-secondary: #111827;
+  --accent-violet: #7C3AED;
+  --accent-cyan: #22D3EE;
+  --accent-pink: #F472B6;
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glow-violet: 0 0 40px rgba(124, 58, 237, 0.4);
+  --glow-cyan: 0 0 40px rgba(34, 211, 238, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--bg-primary);
+  color: #e2e8f0;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+::-webkit-scrollbar-thumb { background: rgba(124, 58, 237, 0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(124, 58, 237, 0.7); }
+
+/* Glass morphism */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Glow effects */
+.glow-violet { box-shadow: 0 0 30px rgba(124, 58, 237, 0.35), 0 0 60px rgba(124, 58, 237, 0.15); }
+.glow-cyan   { box-shadow: 0 0 30px rgba(34, 211, 238, 0.35), 0 0 60px rgba(34, 211, 238, 0.15); }
+.glow-pink   { box-shadow: 0 0 30px rgba(244, 114, 182, 0.35); }
+
+.text-glow-violet { text-shadow: 0 0 20px rgba(124, 58, 237, 0.8); }
+.text-glow-cyan   { text-shadow: 0 0 20px rgba(34, 211, 238, 0.8); }
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #a78bfa 0%, #22d3ee 50%, #f472b6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-violet {
+  background: linear-gradient(135deg, #c4b5fd 0%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Shimmer loading */
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-15px); }
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-10px) rotate(1deg); }
+  66% { transform: translateY(-5px) rotate(-1deg); }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+@keyframes orbPulse {
+  0%, 100% { box-shadow: 0 0 40px rgba(124,58,237,0.5), 0 0 80px rgba(124,58,237,0.2), 0 0 120px rgba(34,211,238,0.1); }
+  50% { box-shadow: 0 0 60px rgba(124,58,237,0.8), 0 0 120px rgba(124,58,237,0.4), 0 0 180px rgba(34,211,238,0.2); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+.animate-float { animation: float 6s ease-in-out infinite; }
+.animate-float-slow { animation: floatSlow 8s ease-in-out infinite; }
+.animate-breathe { animation: breathe 4s ease-in-out infinite; }
+.animate-orb-pulse { animation: orbPulse 3s ease-in-out infinite; }
+.animate-spin-slow { animation: spin-slow 20s linear infinite; }
+
+/* Selection */
+::selection {
+  background: rgba(124, 58, 237, 0.4);
+  color: white;
+}
+
+/* Focus ring */
+.focus-ring:focus-visible {
+  outline: 2px solid rgba(124, 58, 237, 0.7);
+  outline-offset: 2px;
+}
+
+/* Note cards — motion handled in component; keep GPU hint */
+.note-card {
+  transition: box-shadow 0.35s ease, border-color 0.35s ease;
+  transform-style: preserve-3d;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-card {
+    transform: none !important;
+  }
+}
+
+/* Foreground UI sits above cosmic layers */
+.cosmic-ui-layer {
+  position: relative;
+  z-index: 10;
+}
+
+/* Subtle animated gradient border on focus */
+.cosmic-input:focus {
+  border-color: rgba(124, 58, 237, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12), 0 0 20px rgba(124, 58, 237, 0.08);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* Gentle glow pulse for primary CTAs */
+@keyframes cta-glow {
+  0%, 100% { box-shadow: 0 0 24px rgba(124, 58, 237, 0.35); }
+  50% { box-shadow: 0 0 36px rgba(124, 58, 237, 0.55), 0 0 48px rgba(34, 211, 238, 0.15); }
+}
+
+.animate-cta-glow {
+  animation: cta-glow 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cta-glow,
+  .animate-float,
+  .animate-float-slow,
+  .animate-breathe,
+  .animate-orb-pulse {
+    animation: none !important;
+  }
+}
