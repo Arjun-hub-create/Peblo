@@ -66,10 +66,24 @@ const voiceQuery = async (req, res) => {
 
 const transcribe = async (req, res) => {
   try {
-    if (!req.file?.buffer?.length) {
-      return res.status(400).json({ message: 'No audio file received.' });
+    let buffer;
+    let mimetype = 'audio/webm';
+
+    if (req.file?.buffer?.length) {
+      buffer = req.file.buffer;
+      mimetype = req.file.mimetype || mimetype;
+    } else if (req.body?.audioBase64) {
+      buffer = Buffer.from(req.body.audioBase64, 'base64');
+      mimetype = req.body.mimeType || req.body.format || mimetype;
+    } else {
+      return res.status(400).json({ message: 'No audio received. Record again and speak for at least 2 seconds.' });
     }
-    const text = await aiService.transcribeAudio(req.file.buffer, req.file.mimetype);
+
+    if (!buffer.length) {
+      return res.status(400).json({ message: 'Empty recording. Speak louder and try again.' });
+    }
+
+    const text = await aiService.transcribeAudio(buffer, mimetype);
     res.json({ text });
   } catch (error) {
     console.error('Transcribe error:', error.message || error);

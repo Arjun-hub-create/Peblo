@@ -10,10 +10,13 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach JWT token to every request
+// Attach JWT token; let browser set multipart boundary for FormData
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('peblo_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
   return config;
 }, (err) => Promise.reject(err));
 

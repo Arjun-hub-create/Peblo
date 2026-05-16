@@ -13,6 +13,7 @@ export default function VoiceInput({ onTranscript, onClose }) {
   const {
     isRecording,
     isTranscribing,
+    audioLevel,
     supportsRecording,
     startRecording,
     stopRecording,
@@ -137,12 +138,40 @@ export default function VoiceInput({ onTranscript, onClose }) {
 
           <VoiceWaveform active={isRecording} bars={9} color="#22d3ee" className="mb-3" />
 
+          {isRecording && (
+            <div style={{ marginBottom: 12 }}>
+              <motion.div
+                style={{
+                  height: 6,
+                  borderRadius: 999,
+                  background: 'rgba(255,255,255,0.08)',
+                  overflow: 'hidden',
+                }}
+              >
+                <motion.div
+                  animate={{ width: `${Math.max(8, Math.min(100, audioLevel * 280))}%` }}
+                  transition={{ duration: 0.08 }}
+                  style={{
+                    height: '100%',
+                    borderRadius: 999,
+                    background: audioLevel > 0.05
+                      ? 'linear-gradient(90deg, #22d3ee, #7c3aed)'
+                      : 'rgba(100,116,139,0.5)',
+                  }}
+                />
+              </motion.div>
+              <p style={{ color: audioLevel > 0.05 ? '#22d3ee' : '#f472b6', fontSize: 11, marginTop: 6, fontFamily: 'Inter, sans-serif' }}>
+                {audioLevel > 0.05 ? 'Mic is hearing you — keep speaking' : 'Speak louder — mic level is low'}
+              </p>
+            </div>
+          )}
+
           <p style={{ color: isListening ? '#22d3ee' : '#64748b', fontSize: 14, fontFamily: 'Inter, sans-serif', marginBottom: 16 }}>
             {isTranscribing
               ? 'Transcribing your voice…'
               : isRecording
-                ? 'Recording… tap mic when done'
-                : 'Tap mic to speak, tap again to finish'}
+                ? 'Recording… speak 2+ seconds, then tap mic again'
+                : 'Tap mic to speak, tap again when finished'}
           </p>
 
           <AnimatePresence>

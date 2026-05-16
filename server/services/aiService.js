@@ -132,16 +132,63 @@ const voiceQuery = async (query, noteContent, noteTitle) => {
   );
 };
 
+function mimeToFormat(mimetype = '') {
+  const m = mimetype.toLowerCase();
+  if (m.includes('webm')) return 'webm';
+  if (m.includes('mp4') || m.includes('m4a')) return 'm4a';
+  if (m.includes('ogg')) return 'ogg';
+  if (m.includes('wav')) return 'wav';
+  if (m.includes('mp3') || m.includes('mpeg')) return 'mp3';
+  if (m.includes('flac')) return 'flac';
+  return 'webm';
+}
+
+async function transcribeWithOpenRouter(buffer, format) {
+  const key = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim();
+  const res = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.CLIENT_URL || 'https://peblo-gilt.vercel.app',
+      'X-Title': 'Peblo Neural Workspace',
+    },
+    body: JSON.stringify({
+      model: process.env.WHISPER_MODEL || 'openai/whisper-large-v3',
+      input_audio: {
+        data: buffer.toString('base64'),
+        format,
+      },
+      language: 'en',
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.error?.message || data?.message || `Transcription failed (${res.status})`;
+    throw new Error(msg);
+  }
+  const text = (data.text || data.transcription || '').trim();
+  if (!text) throw new Error('No speech detected in the recording.');
+  return text;
+}
+
 const transcribeAudio = async (buffer, mimetype = 'audio/webm') => {
+  if (!buffer?.length) throw new Error('Empty audio recording.');
+  const format = mimeToFormat(mimetype);
   const { client, isOpenRouter } = getProviderConfig();
-  const ext = mimetype.includes('mp4') || mimetype.includes('m4a') ? 'm4a' : 'webm';
+
+  if (isOpenRouter) {
+    return transcribeWithOpenRouter(buffer, format);
+  }
+
+  const ext = format === 'm4a' ? 'm4a' : format;
   const file = await toFile(buffer, `recording.${ext}`, { type: mimetype || `audio/${ext}` });
-  const model = isOpenRouter ? 'openai/whisper-1' : 'whisper-1';
 
   try {
     const result = await client.audio.transcriptions.create({
       file,
-      model,
+      model: 'whisper-1',
       language: 'en',
     });
     const text = result.text?.trim();

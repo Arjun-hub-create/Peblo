@@ -19,6 +19,7 @@ export default function AIPanel({ note, onClose }) {
   const {
     isRecording,
     isTranscribing,
+    audioLevel,
     supportsRecording,
     startRecording,
     stopRecording,
@@ -320,8 +321,31 @@ export default function AIPanel({ note, onClose }) {
               animate={{ opacity: 1 }}
             >
               <VoiceWaveform active={isRecording} bars={7} color="#22d3ee" />
-              <span className="text-cyan-400 text-xs">
-                {isTranscribing ? 'Transcribing…' : 'Recording… tap mic when done'}
+              {isRecording && (
+                <motion.div
+                  className="w-full h-1.5 rounded-full overflow-hidden"
+                  style={{ background: 'rgba(255,255,255,0.08)' }}
+                >
+                  <motion.div
+                    className="h-full rounded-full"
+                    animate={{ width: `${Math.max(8, Math.min(100, audioLevel * 280))}%` }}
+                    transition={{ duration: 0.08 }}
+                    style={{
+                      background: audioLevel > 0.05
+                        ? 'linear-gradient(90deg, #22d3ee, #7c3aed)'
+                        : 'rgba(100,116,139,0.5)',
+                    }}
+                  />
+                </motion.div>
+              )}
+              <span className={`text-xs ${isRecording && audioLevel <= 0.05 ? 'text-pink-400' : 'text-cyan-400'}`}>
+                {isTranscribing
+                  ? 'Transcribing…'
+                  : isRecording
+                    ? audioLevel > 0.05
+                      ? 'Listening… tap mic when done (2+ sec)'
+                      : 'Speak louder — mic level low'
+                    : ''}
               </span>
             </motion.div>
           )}

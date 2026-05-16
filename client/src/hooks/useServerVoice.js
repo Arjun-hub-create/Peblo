@@ -2,32 +2,104 @@ import { useRef, useCallback, useState } from 'react';
 import api from '../services/api';
 
 function pickMimeType() {
-  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+  const types = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/aac',
+    'audio/ogg;codecs=opus',
+    'audio/ogg',
+  ];
   return types.find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) || '';
 }
 
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') return reject(new Error('Could not read audio.'));
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error('Could not read audio.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function formatFromMime(mimeType) {
+  if (mimeType.includes('webm')) return 'webm';
+  if (mimeType.includes('mp4') || mimeType.includes('m4a')) return 'm4a';
+  if (mimeType.includes('ogg')) return 'ogg';
+  if (mimeType.includes('wav')) return 'wav';
+  return 'webm';
+}
+
 /**
- * Records mic audio and transcribes via Peblo API (Whisper) — works on deployed HTTPS
- * without Chrome's Google Web Speech service.
+ * Records mic audio and transcribes via Peblo API (Whisper on OpenRouter).
  */
 export default function useServerVoice() {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   const recorderRef = useRef(null);
   const streamRef = useRef(null);
   const chunksRef = useRef([]);
+  const startedAtRef = useRef(0);
+  const levelRafRef = useRef(null);
+  const audioCtxRef = useRef(null);
 
-  const cleanupStream = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
+  const stopLevelMonitor = useCallback(() => {
+    if (levelRafRef.current) cancelAnimationFrame(levelRafRef.current);
+    levelRafRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    setAudioLevel(0);
   }, []);
 
+  const startLevelMonitor = useCallback((stream) => {
+    try {
+      const ctx = new AudioContext();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+
+      const tick = () => {
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) sum += data[i];
+        const avg = sum / data.length / 255;
+        setAudioLevel(avg);
+        levelRafRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {
+      /* level meter optional */
+    }
+  }, []);
+
+  const cleanupStream = useCallback(() => {
+    stopLevelMonitor();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  }, [stopLevelMonitor]);
+
   const transcribeBlob = useCallback(async (blob, mimeType) => {
-    const formData = new FormData();
-    formData.append('audio', blob, mimeType.includes('mp4') ? 'recording.m4a' : 'recording.webm');
-    const res = await api.post('/notes/transcribe', formData, { timeout: 90000 });
+    const audioBase64 = await blobToBase64(blob);
+    const res = await api.post(
+      '/notes/transcribe',
+      {
+        audioBase64,
+        mimeType,
+        format: formatFromMime(mimeType),
+      },
+      { timeout: 90000 },
+    );
     const text = res.data?.text?.trim();
-    if (!text) throw new Error('No speech detected. Try again or type instead.');
+    if (!text) throw new Error('No speech detected. Speak clearly for 2+ seconds.');
     return text;
   }, []);
 
@@ -35,20 +107,37 @@ export default function useServerVoice() {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('Microphone is not available in this browser.');
     }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+
     streamRef.current = stream;
+    startLevelMonitor(stream);
+
     const mimeType = pickMimeType();
-    const options = mimeType ? { mimeType } : undefined;
-    const recorder = new MediaRecorder(stream, options);
+    let recorder;
+    try {
+      recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    } catch {
+      recorder = new MediaRecorder(stream);
+    }
+
     chunksRef.current = [];
     recorder.ondataavailable = (e) => {
       if (e.data?.size) chunksRef.current.push(e.data);
     };
-    recorder.start(250);
+
+    recorder.start(400);
     recorderRef.current = recorder;
+    startedAtRef.current = Date.now();
     setIsRecording(true);
     return recorder;
-  }, []);
+  }, [startLevelMonitor]);
 
   const stopRecording = useCallback(() => {
     return new Promise((resolve, reject) => {
@@ -58,17 +147,25 @@ export default function useServerVoice() {
         cleanupStream();
         return reject(new Error('Not recording.'));
       }
+
+      const elapsed = Date.now() - startedAtRef.current;
+      if (elapsed < 1500) {
+        return reject(new Error('Speak for at least 2 seconds, then tap the mic again.'));
+      }
+
       recorder.onstop = async () => {
         setIsRecording(false);
         cleanupStream();
         try {
-          const mimeType = recorder.mimeType || 'audio/webm';
+          const mimeType = recorder.mimeType || pickMimeType() || 'audio/webm';
           const blob = new Blob(chunksRef.current, { type: mimeType });
           chunksRef.current = [];
+
           if (!blob.size) {
-            reject(new Error('No audio captured. Try again.'));
+            reject(new Error('No audio captured. Check mic permissions and try again.'));
             return;
           }
+
           setIsTranscribing(true);
           const text = await transcribeBlob(blob, mimeType);
           setIsTranscribing(false);
@@ -78,6 +175,12 @@ export default function useServerVoice() {
           reject(err);
         }
       };
+
+      try {
+        if (recorder.state === 'recording') recorder.requestData();
+      } catch {
+        /* some browsers lack requestData */
+      }
       recorder.stop();
     });
   }, [cleanupStream, transcribeBlob]);
@@ -85,6 +188,11 @@ export default function useServerVoice() {
   const cancelRecording = useCallback(() => {
     if (recorderRef.current?.state === 'recording') {
       recorderRef.current.onstop = null;
+      try {
+        recorderRef.current.requestData();
+      } catch {
+        /* ignore */
+      }
       recorderRef.current.stop();
     }
     chunksRef.current = [];
@@ -96,6 +204,7 @@ export default function useServerVoice() {
   return {
     isRecording,
     isTranscribing,
+    audioLevel,
     isBusy: isRecording || isTranscribing,
     startRecording,
     stopRecording,
